@@ -2,7 +2,7 @@ import pyglet
 from pyglet.gl import *
 
 from graphics import create_projection, create_translation, create_scaling, create_identity,\
-    create_rotation, create_cube, project, PALETTE_BLUE
+    create_rotation, project, PALETTE_BLUE
 
 DIMENSIONS = 3
 
@@ -22,23 +22,14 @@ class Renderer(object):
                                            caption=CAPTION, vsync=False)
         self.projection = create_projection()
         self.projection = (
-            create_translation((300., 300., 0.))).dot(
+            create_translation((100., 100., 0.))).dot(
                 self.projection).dot(
                     create_scaling((100., 100., 1.)))
-        self.camera = create_identity()
-
-        self.create_bounding_cube()
+        self.camera = create_identity().dot(create_translation([0., 0., 0.]))
 
         pyglet.clock.schedule_interval(self.update, INTERVAL)
         self.fps_counter = pyglet.clock.ClockDisplay()
         self.window.event(self.on_draw)
-
-    def create_bounding_cube(self):
-        cube = create_cube(DIMENSIONS)
-        bounding_vertices, bounding_lines = cube.vertices, cube.lines
-        bounding_vertices *= .96
-        bounding_vertices += .2
-        self.bounding_cube = (bounding_vertices, bounding_lines)
 
     def on_draw(self):
         """Automatically called upon every clock tick, renders the board"""
@@ -48,6 +39,10 @@ class Renderer(object):
         glMatrixMode(GL_MODELVIEW)
         glLoadIdentity()
 
+        glClearDepth(1.0)
+        glDepthFunc(GL_LESS)
+        glEnable(GL_DEPTH_TEST)
+
         glDisable(GL_TEXTURE_2D)
         self.render()
         glEnable(GL_TEXTURE_2D)
@@ -56,7 +51,8 @@ class Renderer(object):
 
     CAMERA_ROTATION = (
         create_translation([.5, .5, .5]).dot(
-            create_rotation(.003, 0, 1)).dot(
+            create_rotation(.009, 0, 1)).dot(
+#            create_rotation(.009, 0, 2)).dot(
                 create_translation([-.5, -.5, -.5]))
     )
 
@@ -66,24 +62,22 @@ class Renderer(object):
     def render(self, palette=PALETTE_BLUE):
         glLineWidth(LINE_WIDTH)
         for obj in self.world.objects:
-            vertices, lines = obj.model.vertices, obj.model.lines
+            vertices, triangles = obj.model.vertices, obj.model.triangles
             vertices = project(self.projection, self.camera, obj.object_to_world, vertices)
-            for a, b in lines:
+            for a, b, c in triangles:
                 x1, y1, c1 = vertices[:, a]
                 x2, y2, c2 = vertices[:, b]
-                if c1 < 0 or c2 < 0:
+                x3, y3, c3 = vertices[:, c]
+                if c1 < 0 or c2 < 0 or c3 < 0:
                     continue
-                # weird fix for the depth coordinates, that would be displayed as color
+                # we don't want our colors above 1, but sometimes our depth is...
+                # horrible temp fix
                 c1 = min(1., c1)
                 c2 = min(1., c2)
-
-                pyglet.graphics.draw(2, GL_LINES,
-                                     ('v2f', (x1, y1, x2, y2)),
-                                     ('c3B', palette.color(c1) + palette.color(c2)))
+                c3 = min(1., c3)
+                pyglet.graphics.draw(3, GL_TRIANGLES,
+                                     ('v3f', (x1, y1, -c1, x2, y2, -c2, x3, y3, -c3)),
+                                     ('c3B', palette.color(c1) + palette.color(c2) + palette.color(c3)))
 
     def run(self):
         pyglet.app.run()
-
-#if __name__ == '__main__':
-#    renderer = Renderer()
-#    pyglet.app.run()

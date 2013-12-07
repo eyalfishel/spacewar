@@ -1,10 +1,14 @@
 import numpy as np
+from graphics import apply_matrix
 
 
 class Model(object):
-    def __init__(self, vertices, lines):
+    def __init__(self, vertices, triangles):
         self.vertices = vertices
-        self.lines = lines
+        self.triangles = triangles
+
+    def transform(self, matrix):
+        self.vertices = apply_matrix(matrix, self.vertices)
 
     def unite(self, other):
         raise NotImplementedError

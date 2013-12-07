@@ -1,5 +1,5 @@
 import numpy
-from objects import Model
+import collada
 
 DIMENSIONS = 3
 SCREEN_DIMENSIONS = 2
@@ -98,62 +98,26 @@ assert numpy.allclose(
     [1/numpy.sqrt(2), 1/numpy.sqrt(2), 0])
 
 
-def create_cube(dimensions):
-    """
-    Returns a `dimensions`-dimensional cube, e.g. a square (2D) or a hypercube (4D).
-    The cube spans from [0, ..., 0] to [1, ..., 1].
-    
-    The shape is returned as a tuple (vertices, lines) where vertices is a KxD table
-    (each column is a point in D dimensions, and there are K points) and lines is a
-    list of pairs of indices of rows in vertices.
-    
-    e.g., a 1D cube (a line) would be
-    ([[0],
-      [1]],
-     [(0, 1)]),
-    and a 2D cube (a square) would be
-    ([[0, 1, 0, 1],
-      [0, 0, 1, 1]],
-     [(0, 1), (1, 2), (2, 3), (3, 0)]),
-    which describes the points: {A: (0, 0), B: (1, 0), C: (0, 1), D: (1, 1)}
-    and line segments between the points (A, B), (B, C), (C, D) and (D, A),
-    or alternatively the "less orderly"
-    ([[0, 1, 0, 1],
-      [0, 1, 1, 0]],
-     [(2, 1), (3, 0), (0, 2), (1, 3)]),
-    which describes the points: {A: (0, 0), B: (1, 1), C: (0, 1), D: (1, 0)}
-    and line segments between the points (C, B), (D, A), (A, C) and (B, D).
-    """
-    if dimensions == 1:
-        return Model(numpy.array([[0, 1]]), numpy.array([(0, 1)]))
-    cube = create_cube(dimensions - 1)
-    v, l = cube.vertices, cube.lines
-    nv = v.shape[1]
-    nl = v.shape[0]
-    vertices = numpy.hstack([v, v])
-    vertices = numpy.vstack((vertices, numpy.zeros(shape=(1, vertices.shape[1]))))
-    vertices[-1, nv:] = 1
-    lines = numpy.vstack([l,
-                          [(x + nv, y + nv) for x, y in l],
-                          [(x, x + nv) for x in xrange(nv)]])
-    return Model(vertices, lines)
-
+def apply_matrix(matrix, vertices):
+    # add a row of 1 values to the bottom, to convert 3D coordinates
+    # to 3D homogenous coordinates
+    homogenous = numpy.vstack((vertices,
+                               numpy.ones((1, vertices.shape[1]),
+                                          dtype=vertices.dtype)))
+    return matrix.dot(homogenous)[:-1, :]
+_v = numpy.random.random((DIMENSIONS, 10))
 assert numpy.allclose(
-    create_cube(2).vertices,
-    [[0, 1, 0, 1],
-     [0, 0, 1, 1]])
+    apply_matrix(create_identity(), _v),
+    _v
+)
 assert numpy.allclose(
-    create_cube(2).lines,
-    [(0, 1), (2, 3), (0, 2), (1, 3)])
-
-assert create_cube(DIMENSIONS).vertices.shape == (DIMENSIONS, 2 ** DIMENSIONS)
-assert create_cube(DIMENSIONS).lines.shape == (2 ** (DIMENSIONS - 1) * DIMENSIONS, 2)
-
-
-#TODO
-def create_sphere(dimensions):
-    raise NotImplementedError
-
+    apply_matrix(numpy.zeros([DIMENSIONS + 1] * 2), _v),
+    0 * _v
+)
+assert numpy.allclose(
+    apply_matrix(create_scaling([2.] * DIMENSIONS), _v),
+    2 * _v
+)
 
 def project(projection, camera, vertices_to_world, raw_vertices):
     """Apply camera matrix, then projection matrix, to source, which
